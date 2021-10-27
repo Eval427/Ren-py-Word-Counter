@@ -138,15 +138,15 @@ class Window(Frame):
         self.file_explorer_label.config(text = "Current Directory: {0}".format(self.file_path))
 
         for folder in os.listdir(self.file_path):
-            with open(os.path.join(self.file_path, "__init__.py"), encoding = "utf-8") as current:
+            with open(os.path.join(self.file_path, folder, "__init__.py"), encoding = "utf-8") as current:
                 for line in current:
                     line = line.strip()
                     if re.search("^return\s?\((?:\"|')(.+)(?:\"|'),\s?(?:\"|').+(?:\"|'),\s?(?:\"|').+(?:\"|')\)", line):
-                        self.mods[re.search("^return\s?\((?:\"|')(.+)(?:\"|'),\s?(?:\"|').+(?:\"|'),\s?(?:\"|').+(?:\"|')\)", line).group(1)] = path
-                        return
+                        self.mods[re.search("^return\s?\((?:\"|')(.+)(?:\"|'),\s?(?:\"|').+(?:\"|'),\s?(?:\"|').+(?:\"|')\)", line).group(1)] = folder
+                        break
                     elif re.search("^name\s?=\s?(?:\"|')(.+)(?:\"|')", line):
-                        self.mods[re.search("^name\s?=\s?(?:\"|')(.+)(?:\"|')", line).group(1)] = path
-                        return
+                        self.mods[re.search("^name\s?=\s?(?:\"|')(.+)(?:\"|')", line).group(1)] = folder
+                        break
 
         self.mod_list.config(listvariable = StringVar(value = [key for key in self.mods]))
 
