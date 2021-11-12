@@ -89,29 +89,33 @@ class Window(Frame):
 
         #Add basegame files if necessary
         if self.include_basegame.get():
-            total_words += 138342 #Total words in base game
-            for character in self.basegame_character_words:
-                character_words[character] = self.basegame_character_words[character]
 
-            #Programatically gets basegame files from folder "basegame". Replaced with raw values
-            #for file in os.listdir(os.path.join(Path.cwd(), "basegame")):
-            #    if file.endswith(".rpy"):
-            #        files_to_parse.append(os.path.join(Path.cwd(), "basegame", file))
+            #Total words in base game
+            total_words += 230177
+
+            #Total words per character in basegame - static values since basegame files are not always accessable
+            character_words = {'c': 36391, 'm': 23887, 'n': 16023, 'Br': 15681, 'Ad': 11973, 's': 11801, 'An': 11755, 'Ry': 11091, 'Lo': 9086, 'Sb': 7558, 'Em': 5337, 'Rz': 3969, 'As': 2803, 'Kv': 2796, 'Iz': 2488, 'Mv': 2178, 'Zh': 2163, 'Ip': 2048, 'Ka': 1698, 'Hz': 981, 'St': 890, 'a': 594, 'Dm': 438, 'Sy': 263, 'Fr': 196, 'Wr': 186, 'Xu': 164, 'Fv': 143, 'Al': 141, 'Hu': 69, 'b': 65, 'Kl': 56, 'Op': 42, 'Lu': 35, 'Ei': 34, 'Le': 23, 'Xi': 17, 'Gr': 13, 'Vr': 12, 'Am': 9, 'Dr': 2}
 
         #Add selected mod files if necessary
         if self.include_mod.get():
             selected_mods = [self.mod_list.get(i) for i in self.mod_list.curselection()]
             for mod in self.mods:
                 if mod in selected_mods:
-                    for file in os.listdir(self.mods[mod]):
+                    for file in os.listdir(os.path.join(self.file_path, self.mods[mod])):
                         if file.endswith(".rpy"):
-                            files_to_parse.append(os.path.join(self.mods[mod], file))
+                            files_to_parse.append(os.path.join(self.file_path, self.mods[mod], file))
+        
+        #Get the list of characters
+        if self.include_characters.get():
+            character_list = self.get_character_list(files_to_parse)
+            for character in character_list:
+                character_words[character] = 0
         
         for file in files_to_parse:
             if self.include_total.get():
                 total_words += self.get_words_in_file(file)
             if self.include_characters.get():
-                character_words = self.get_words_by_character(file, character_words)
+                character_words = self.get_words_by_character(file, character_words, character_list)
         
         if self.include_total.get():
             return_string += "Total Word Count:\n{0}\n\n".format(str(total_words))
@@ -128,6 +132,8 @@ class Window(Frame):
                     return_string += "{0}: {1} | {2}: {3}\n".format(list(character_words.keys())[i], list(character_words.values())[i], list(character_words.keys())[i+1], list(character_words.values())[i+1])
         
         self.wordcount_label.config(text = return_string)
+        print(total_words)
+        print(character_words)
     
     def exec_exit_button(self):
         exit()
@@ -149,19 +155,51 @@ class Window(Frame):
                         break
 
         self.mod_list.config(listvariable = StringVar(value = [key for key in self.mods]))
+    
+    def get_character_list(self, file_list):
+        characters = []
+
+        #Add basegame defined characters if necessary
+        if not self.include_basegame.get():
+            characters = ["c", "m", "n", "Br", "Ad", "s", "An", "Ry", "Lo", "Sb", "Em", "Rz", "As", "Kv", "Iz", "Mv", "Zh", "Ip", "Ka", "Hz", "St", "a", "Dm", "Sy", "Fr", "Wr", "Xu", "Fv", "Al", "Hu", "b", "Kl", "Op", "Lu", "Ei", "Le", "Xi", "Gr", "Vr", "Am", "Dr"]
+
+        for file in file_list:
+            with open(file, encoding = 'cp850') as current:
+                for line in current:
+                    line = line.strip()
+        
+                    define_regex = re.search("^define (.+)\s=\s*Character\s*\(.+\).*", line)
+
+                    if define_regex and define_regex.group(1) != "nnvl":
+                        characters.append(define_regex.group(1))
+        return characters
 
     def get_words_in_file(self, file):
+        is_python = False
         wordcount = 0
         with open(file, encoding = 'cp850') as current:
             for line in current:
                 line = line.strip()
-                line_regex = re.search("^(?!if)^(\w{1,2}|(?:\"|')(?:Announcer|\?\?\?)(?:\"|')) (?:\"|')(.+)(?:\"|')(?: with .+)?", line)
+
+                if re.search(".*(?:python|screen).*:(?:\s*#+.+)?", line):
+                    is_python = True
                 
-                if not line_regex:
+                if re.search("^label .+:(?:\s*#+.+)?", line):
+                    is_python = False
+                
+                if is_python or re.search("^(if|#|play|elif|sound|\s|queue)", line):
                     continue
 
-                for letter in line_regex.group(2):
-                    if letter == " ":
+                #Get wordcount of line
+                is_dialogue = False
+
+                for i, letter in enumerate(line):
+                    if not is_dialogue and letter == "\"" and i != 0:
+                        is_dialogue = True
+                    elif is_dialogue and letter == "\"" and line[i-1] != "\\":
+                        is_dialogue = False
+                    
+                    if is_dialogue and letter == " ":
                         wordcount += 1
                 
                 #Add one for the first word
@@ -169,25 +207,33 @@ class Window(Frame):
         
         return wordcount
 
-    def get_words_by_character(self, file, dictionary):
+    def get_words_by_character(self, file, dictionary, character_list):
         with open(file, encoding = 'cp850') as current:
             for line in current:
                 line = line.strip()
+                character = ""
 
-                line_regex = re.search("^(?!if)^(\w{1,2}|(?:\"|')(?:Announcer|\?\?\?)(?:\"|')) (?:\"|')(.+)(?:\"|')(?: with .+)?", line)
-
-                if not line_regex:
+                for i in character_list:
+                    if line.startswith(i):
+                        character = i
+                        break
+                
+                if character == "":
                     continue
-
-                if line_regex.group(1) not in dictionary:
-                    dictionary[line_regex.group(1)] = 0
-
-                for letter in line_regex.group(2):
-                    if letter == " ":
-                        dictionary[line_regex.group(1)] += 1
+                
+                is_dialogue = False
+                
+                for i, letter in enumerate(line):
+                    if not is_dialogue and letter == "\"":
+                        is_dialogue = True
+                    elif is_dialogue and letter == "\"" and line[i-1] != "\\":
+                        is_dialogue = False
+                    
+                    if is_dialogue and letter == " ":
+                        dictionary[character] += 1
                 
                 #Add one for the first word
-                dictionary[line_regex.group(1)] += 1
+                dictionary[character] += 1
         
         dictionary = dict(sorted(dictionary.items(), key = lambda x: x[1], reverse = True))
 
