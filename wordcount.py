@@ -132,8 +132,6 @@ class Window(Frame):
                     return_string += "{0}: {1} | {2}: {3}\n".format(list(character_words.keys())[i], list(character_words.values())[i], list(character_words.keys())[i+1], list(character_words.values())[i+1])
         
         self.wordcount_label.config(text = return_string)
-        print(total_words)
-        print(character_words)
     
     def exec_exit_button(self):
         exit()
